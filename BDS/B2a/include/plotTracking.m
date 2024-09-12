@@ -162,6 +162,19 @@ for channelNr = channelList
     title('Data-channel C/No Estimation')
     ylabel('dB-Hz')
     xlabel('200msec (or as set in initSettings.m) epoch computation')
+
+    if (settings.pilotTRKflag == 1)
+        figure(channelNr +600);
+        clf(channelNr +600);
+        set(channelNr +600, 'Name', ['Channel ', num2str(channelNr), ...
+            ' (PRN ', ...
+            num2str(trackResults(channelNr).PRN), ...
+            ') CNo']);
+        plot(trackResults(channelNr).PilotCNo,'mo')
+        title('Pilot-channel C/No Estimation')
+        ylabel('dB-Hz')
+        xlabel('200msec (or as set in initSettings.m) epoch computation')
+    end
     end %if trackResults(channelNr).status == 'T' 
         
 end % for channelNr = channelList
