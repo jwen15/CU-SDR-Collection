@@ -1,1 +1,4 @@
 BDS/B2a/*.bin
+BDS/B2a/acqResults.mat
+BDS/B2a/navResults.mat
+BDS/B2a/trkResults.mat
