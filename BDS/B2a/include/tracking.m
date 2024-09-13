@@ -114,7 +114,7 @@ PDIcode = settings.intTime;
 %--- PLL variables --------------------------------------------------------
 % Calculate filter coefficient values
 [pf3,pf2,pf1] = calcLoopCoefCarr(settings);
-% -------- Number of acqusired signals ------------------------------------
+% -------- Number of acquired signals ------------------------------------
 TrackedNr =0 ;
 for channelNr = 1:settings.numberOfChannels
     if channel(channelNr).status == 'T'
