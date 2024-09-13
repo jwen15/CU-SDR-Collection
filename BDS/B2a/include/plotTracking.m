@@ -174,6 +174,18 @@ for channelNr = channelList
         title('Pilot-channel C/No Estimation')
         ylabel('dB-Hz')
         xlabel('200msec (or as set in initSettings.m) epoch computation')
+
+        %----- Discrete-Time Scatter Plot ---------------------------------
+        figure(channelNr + 700);
+        plot(trackResults(channelNr).Pilot_I_P,...
+            trackResults(channelNr).Pilot_Q_P, ...
+            '.');
+
+        grid  on;
+        axis  ('equal');
+        title ('Discrete-Time Scatter Plot (Pilot)');
+        xlabel('I prompt');
+        ylabel('Q prompt');
     end
     end %if trackResults(channelNr).status == 'T' 
         
