@@ -76,6 +76,10 @@ for channelNr = activeChnList
     fprintf('Decoding B-CNAV2 for PRN %02d of BDS-3 B2a signals -------------------- \n', PRN);
 
     %=== Decode ephemerides and TOW of the first sub-frame ================
+    if (settings.pilotTRKflag == 3)
+        [eph(PRN), subFrameStart(channelNr), TOW(channelNr)] = ...
+            pilot_sec_code_decode(trackResults(channelNr).Pilot_Q_P);  %#ok<AGROW>
+    end
     [eph(PRN), subFrameStart(channelNr), TOW(channelNr)] = ...
                                   BCNAV2decoding(trackResults(channelNr).I_P);  %#ok<AGROW>
     % %--- Exclude satellite if it does not have the necessary cnav data ----
