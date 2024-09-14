@@ -47,8 +47,10 @@ intTime = settings.intTime;
 a3 = 2;
 b3 = 2;
 
+aaa = 4*(a3*b3-1)/(a3*b3*b3+a3*a3-b3);
+
 % Solve natural frequency
-Wn = 1.2 * LBW;
+Wn = aaa * LBW;
 
 % solve for [pf3,pf2,pf1]
 pf3 = Wn^3 * intTime^2;
