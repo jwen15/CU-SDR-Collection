@@ -48,7 +48,7 @@ function [navSolutions, eph] = postNavigation(trackResults, settings)
 % record (3 * 8 = 24 sec = 24000ms).
 if (settings.msToProcess < 24000)
     % Show the error message and exit
-    disp('Record is to short. Exiting!');
+    disp('Record is too short. Exiting!');
     navSolutions = [];
     eph          = [];
     return
