@@ -229,7 +229,11 @@ for channelNr = 1:settings.numberOfChannels
 
             %% Read next block of data ------------------------------------------------
             % Record sample number (based on 8bit samples)
-            trackResults(channelNr).absoluteSample(loopCnt) =(ftell(fid))/dataAdaptCoeff;
+            if strcmp(settings.dataType,'int16')
+                trackResults(channelNr).absoluteSample(loopCnt) =(ftell(fid))/dataAdaptCoeff/2;
+            else
+                trackResults(channelNr).absoluteSample(loopCnt) =(ftell(fid))/dataAdaptCoeff;
+            end
 
             % Update the phasestep based on code freq (variable) and
             % sampling frequency (fixed)
