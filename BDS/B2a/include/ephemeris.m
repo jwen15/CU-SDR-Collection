@@ -81,6 +81,8 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % Week No.
         eph.WN  = bin2dec(navBitsBin(31:43));
@@ -90,6 +92,15 @@ switch MesType
         eph.SIF  = bin2dec(navBitsBin(45));
         % AIF
         eph.AIF  = bin2dec(navBitsBin(46));
+
+        eph.SISMAI = bin2dec(navBitsBin(47:50));
+
+        eph.DIF_B1C  = bin2dec(navBitsBin(51));
+        % SIF
+        eph.SIF_B1C  = bin2dec(navBitsBin(52));
+        % AIF
+        eph.AIF_B1C  = bin2dec(navBitsBin(53));
+
         % Ephemeris data reference time of week
         eph.t_oe        = bin2dec(navBitsBin(62:72)) * 300;
         % Satellite type
@@ -124,6 +135,8 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % HS
         eph.HS  = bin2dec(navBitsBin(31:32));
@@ -158,11 +171,14 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % It contains Clock, IONO & Group Delay
         eph.idValid(3) = 30;
         % PRN
         eph.PRN  = PRN;
+        eph.HS30  = bin2dec(navBitsBin(31:32));
         % Clock Data Reference Time of Week
         eph.t_oc        = bin2dec(navBitsBin(43:53)) * 300;
         % SV Clock Bias Correction Coefficient
@@ -199,11 +215,14 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % It contains Clock & Reduced Almanac
         eph.idValid(4) = 31;
         % ORN NO.
         eph.PRN  = PRN;
+        eph.HS31  = bin2dec(navBitsBin(31:32));
         % Clock Data Reference Time of Week
         eph.t_oc        = bin2dec(navBitsBin(43:53)) * 300;
         % SV Clock Bias Correction Coefficient
@@ -222,11 +241,14 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % It contains Clock & EOP
         eph.idValid(5) = 32;
         % PRN NO.
         eph.PRN  = PRN;
+        eph.HS32  = bin2dec(navBitsBin(31:32));
         % Clock Data Reference Time of Week
         eph.t_oc        = bin2dec(navBitsBin(43:53)) * 300;
         % SV Clock Bias Correction Coefficient
@@ -245,11 +267,14 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % It contains Clock & UTC
         eph.idValid(6) = 33;
         % PRN No.
         eph.PRN  = PRN;
+        eph.HS33  = bin2dec(navBitsBin(31:32));
         % Clock Data Reference Time of Week
         eph.t_oc        = bin2dec(navBitsBin(43:53)) * 300;
         % SV Clock Bias Correction Coefficient
@@ -259,9 +284,9 @@ switch MesType
         % SV Clock Drift Rate Correction Coefficient
         eph.a_2        = twosComp2dec(navBitsBin(101:111)) * 2^(-66);
         % MSB 2 bits
-        eph.IODC_MSB2   = bin2dec(navBitsBin(112:113));
+        eph.IODC_MSB2   = bin2dec(navBitsBin(218:219));
         % LSB 8 bits
-        eph.IODC_LSB8   = bin2dec(navBitsBin(114:121));
+        eph.IODC_LSB8   = bin2dec(navBitsBin(220:227));
         % BGTO --------------------------------------
         % GNSS ID
         eph.GNSS_ID   = bin2dec(navBitsBin(112:114));
@@ -276,11 +301,14 @@ switch MesType
         % SOW
         if isempty(eph.SOW)
             eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
         end
         % It contains Clock & Differential Correction
         eph.idValid(7)  = 34;
         % PRN No.
         eph.PRN  = PRN;
+        eph.HS34  = bin2dec(navBitsBin(31:32));
         % Clock Data Reference Time of Week
         eph.t_oc        = bin2dec(navBitsBin(65:75)) * 300;
         % SV Clock Bias Correction Coefficient
@@ -305,6 +333,16 @@ switch MesType
         eph.delta_t_LSF   = twosComp2dec(navBitsBin(123:133));
         % Other terms not decoded at the moment...
         
+    case 40
+        if isempty(eph.SOW)
+            eph.SOW  = bin2dec(navBitsBin(13:30)) * 3;
+        else
+            sow = bin2dec(navBitsBin(13:30)) * 3;
+        end
+        eph.idValid(8)  = 40;
+        % PRN No.
+        eph.PRN  = PRN;
+        eph.HS40  = bin2dec(navBitsBin(31:32));
     otherwise % Other message types include: ------------------------------
         % Mainly Reduced & Midi Almanac,UTC parameters and so on
         % Not decoded at the moment.
