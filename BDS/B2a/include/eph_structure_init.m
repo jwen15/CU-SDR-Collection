@@ -43,6 +43,14 @@ eph.DIF  = [];
 eph.SIF  = [];
 % AIF
 eph.AIF  = [];
+
+eph.SISMAI = [];
+
+eph.DIF_B1C  = [];
+% SIF
+eph.SIF_B1C  = [];
+% AIF
+eph.AIF_B1C  = [];
 % Ephemeris data reference time of week
 eph.t_oe        = [];
 % Satellite type
@@ -140,3 +148,11 @@ eph.WN_ot         = [];
 eph.WN_LSF        = [];
 eph.DN            = [];
 eph.delta_t_LSF   = [];
+
+%% 
+eph.HS30  = [];
+eph.HS31  = [];
+eph.HS32  = [];
+eph.HS33  = [];
+eph.HS34  = [];
+eph.HS40  = [];
