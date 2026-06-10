@@ -54,11 +54,11 @@ if (settings.samplingFreq > settings.resamplingThreshold && ...
     fs = settings.samplingFreq;
     IF = settings.IF;
     % Bandwidth of E5a mian lobe
-    BW = 20.46e6;
+    BW = settings.codeFreqBasis*2 + 0.5e6;
     % Filter parameter
     w1 = (IF)-BW/2;
     w2 = (IF)+BW/2;
-    wp = [w1*2/fs w2*2/fs];
+    wp = [w1*2/fs-0.002 w2*2/fs+0.002];
     % Filter coefficients
     b  = fir1(700,wp);
     % Filter operation
@@ -116,8 +116,7 @@ if (settings.samplingFreq > settings.resamplingThreshold && ...
 
 end % resampling input IF signals
 
-%% Initialization ===================================================
-
+%% Acquisition initialization =======================================
 %--- Varaibles for coarse acquisition -------------------------------------
 % Find number of samples per spreading code
 samplesPerCode = round(settings.samplingFreq / ...
@@ -136,25 +135,29 @@ coarseFreqBin = zeros(1, numberOfFreqBins);
 
 %--- Initialize acqResults ------------------------------------------------
 % Carrier frequencies of detected signals
-acqResults.carrFreq     = zeros(1, 50);
-% E5bI code phases of detected signals
-acqResults.codePhase    = zeros(1, 50);
+acqResults.carrFreq     = zeros(1, max(settings.acqSatelliteList));
+% PRN code phases of detected signals
+acqResults.codePhase    = zeros(1, max(settings.acqSatelliteList));
 % Correlation peak ratios of the detected signals
-acqResults.peakMetric   = zeros(1, 50);
+acqResults.peakMetric   = zeros(1, max(settings.acqSatelliteList));
 
 %--- Varaibles for fine acquisition ---------------------------------------
-% Number of the frequency bins for fine acquisition: use 5Hz step
-NumOfFineBins = round(settings.acqSearchStep / 5) + 1;
+% Number of the frequency bins for fine acquisition: use 400Hz fine
+% acquisition band, and 25Hz step
+NumOfFineBins = round(settings.acqSearchStep / 25) + 1;
 
 % Carrier frequencies of the frequency bins
 FineFreqBins     = zeros(1, NumOfFineBins);
 
 % Search results of all frequency bins
 FineResult = zeros(1,NumOfFineBins);
+% At least 10ms signal is sued for fine frequency estimation
+fineSigLen = max(10,settings.acqNonCohTime);
 % Coherent integration for each code
-sumPerCode = zeros(1,100);
+sumPerCode1 = zeros(1,fineSigLen);
+sumPerCode2 = zeros(1,fineSigLen);
 %--- Find phase points of the local carrier wave -------------------
-finePhasePoints = (0 : (100*samplesPerCode-1)) * 2 * pi * ts;
+finePhasePoints = (0 : (fineSigLen*samplesPerCode-1)) * 2 * pi * ts;
 
 %--- Input signal power for GLRT statistic calculation --------------------
 sigPower = sqrt(var(longSignal(1:samplesPerCode)) * samplesPerCode);
@@ -179,12 +182,14 @@ for PRN = settings.acqSatelliteList
     %--- Perform DFT of PRN code ------------------------------------------
     E5aICodeFreqDom = conj(fft(localE5aICode));
     E5aQCodeFreqDom = conj(fft(localE5aQCode));
+
     %--- Make the correlation for all frequency bins
     for freqBinIndex = 1:numberOfFreqBins
 
         %--- Generate carrier wave frequency grid  -----------------------
         coarseFreqBin(freqBinIndex) = settings.IF + settings.acqSearchBand - ...
             settings.acqSearchStep * (freqBinIndex - 1);
+
         %--- Generate local sine and cosine -------------------------------
         sigCarr = exp(-1i * coarseFreqBin(freqBinIndex) * phasePoints);
 
@@ -229,45 +234,56 @@ for PRN = settings.acqSatelliteList
         % Antipodal form of E5aQ secondary code
         secondCode = generateE5aQ_secondary(PRN);
         %--- Generate 100msec long E5aQ primary codes sequence for given PRN
+        E5aICode = generateE5aIcode(PRN,1);
         E5aQCode = generateE5aQcode(PRN,1);
 
-        codeValueIndex = floor((ts * (1:100*samplesPerCode)) / ...
+        % Sampling index
+        codeValueIndex = floor((ts * (1:fineSigLen*samplesPerCode)) / ...
             (1/settings.codeFreqBasis));
-        longE5aQCode = E5aQCode((rem(codeValueIndex, settings.codeLength) + 1));
+
+        % Sampled data and pilot codes
+        longE5aDataCode = E5aICode((rem(codeValueIndex, settings.codeLength) + 1));
+        longE5aPilotCode = E5aQCode((rem(codeValueIndex, settings.codeLength) + 1));
+
         % 100ms incoming signal
-        sig100ms = longSignal(codePhase:codePhase + 100*samplesPerCode -1);
+        sig100ms = longSignal(codePhase:codePhase + fineSigLen*samplesPerCode -1);
 
         %--- Search different frequency bins ------------------------------
         for FineBinIndex = 1 : NumOfFineBins
 
             % Carrier frequencies of the frequency bins
-            FineFreqBins(FineBinIndex) = coarseFreqBin(acqCoarseBin) + ...
-                settings.acqSearchStep/2 - 5 * (FineBinIndex - 1);
+            FineFrqBins(FineBinIndex) = coarseFreqBin(acqCoarseBin) +...
+                settings.acqSearchStep/2 - 25 * (FineBinIndex - 1);
             % Generate local sine and cosine
             sigCarr100ms = exp(-1i*FineFreqBins(FineBinIndex) * finePhasePoints);
             % Wipe off E5aQ code and carrier from incoming signals to
-            % produce baseband signal
-            basebandSig = longE5aQCode .* sigCarr100ms .* sig100ms;
+            % produce baseband signal. This is for data channel
+            basebandSig1 = longE5aDataCode .* sigCarr100ms .* sig100ms;
+
+            % This is for pilot channel
+            basebandSig2 = longE5aPilotCode .* sigCarr100ms .* sig100ms;
 
             % Coherent integration for each code
-            for index = 1:100
-                sumPerCode(index) = sum( basebandSig( samplesPerCode*(index-1)+1:...
-                    samplesPerCode*index ) );
+            for index = 1:fineSigLen
+                sumPerCode1(index) = sum( basebandSig1( samplesPerCode * ...
+                    (index-1)+1:samplesPerCode*index ) );
+                sumPerCode2(index) = sum( basebandSig2( samplesPerCode * ...
+                    (index-1)+1:samplesPerCode*index ) );
             end
 
             % Initialize maximal power for 10 NH code combiniations
-            maxPower = 0;
+%             maxPower = 0;
             %--- Search different E5aQ secondary code combinations --------
-            for comIndex = 1:100
-                % Wipe off NH code
-                sumTieredCode = sumPerCode .* secondCode;
-                % Maximal coherent power for different NH code combiniations
-                maxPower = max(maxPower,abs(sum(sumTieredCode)));
-                % Shift NH code for next  combiniation
-                secondCode = circshift(secondCode',1)';
-            end % Search different NH code combiniations
+%             for comIndex = 1:100
+%                 % Wipe off NH code
+%                 sumTieredCode = sumPerCode .* secondCode;
+%                 % Maximal coherent power for different NH code combiniations
+%                 maxPower = max(maxPower,abs(sum(sumTieredCode)));
+%                 % Shift NH code for next  combiniation
+%                 secondCode = circshift(secondCode',1)';
+%             end % Search different NH code combiniations
 
-            FineResult(FineBinIndex) = maxPower;
+            FineResult(FineBinIndex) = sum(abs(sumPerCode1)) + sum(abs(sumPerCode2));
         end % FineBinIndex = 1 : NumOfFineBins
 
         % Find the fine carrier freq. -------------------------------------
@@ -289,8 +305,15 @@ for PRN = settings.acqSatelliteList
                 settings.samplingFreq * oldFreq)+1;
 
             % Doppler frequency
-            doppler = acqResults.carrFreq(PRN) - settings.IF;
-
+            if (settings.IF >= settings.samplingFreq/2)
+                % In this condition, the FFT computed freq. is symmetric
+                % with the true frequemcy about half of the sampling
+                % frequency, so we have the following:
+                IF_temp = settings.samplingFreq - settings.IF;
+                doppler = IF_temp - acqResults.carrFreq(PRN);
+            else
+                doppler = acqResults.carrFreq(PRN) - settings.IF;
+            end
             % Carrier freq. corresponding to orignal sampling freq
             acqResults.carrFreq(PRN) = doppler + oldIF;
         end

@@ -67,23 +67,30 @@ trackResults.Q_P            = zeros(1, settings.msToProcess);
 trackResults.Q_L            = zeros(1, settings.msToProcess);
 
 % for pilot signal
-trackResults.Pilot_I_P  = zeros(1, settings.msToProcess);
-trackResults.Pilot_Q_P  = zeros(1, settings.msToProcess);
+if (settings.pilotTRKflag == 1)
+    trackResults.Pilot_I_P  = zeros(1, settings.msToProcess);
+    trackResults.Pilot_Q_P  = zeros(1, settings.msToProcess);
+end
 % Loop discriminators
 trackResults.dllDiscr       = inf(1, settings.msToProcess);
 trackResults.dllDiscrFilt   = inf(1, settings.msToProcess);
 trackResults.pllDiscr       = inf(1, settings.msToProcess);
 trackResults.pllDiscrFilt   = inf(1, settings.msToProcess);
 
-% Remain code and carrier phase for position calculation
+% Remain code and carrier phase
 trackResults.remCodePhase   = inf(1, settings.msToProcess);
 trackResults.remCarrPhase   = inf(1, settings.msToProcess);
 
-%C/No
-trackResults.CNo.VSMValue = ...
-    zeros(1,floor(settings.msToProcess/settings.CNo.VSMinterval));
-trackResults.CNo.VSMIndex = ...
-    zeros(1,floor(settings.msToProcess/settings.CNo.VSMinterval));
+% C/No and PLL lock detector of data channel
+trackResults.DataCNo  = zeros(1,floor(settings.msToProcess/settings.CNoInterval));
+trackResults.DataPLD  = zeros(1,floor(settings.msToProcess/settings.CNoInterval));
+
+% C/No and PLL lock detector of pilot channel
+if (settings.pilotTRKflag == 1)
+    trackResults.PilotCNo = zeros(1,floor(settings.msToProcess/settings.CNoInterval));
+    trackResults.PilotPLD  = zeros(1,floor(settings.msToProcess/settings.CNoInterval));
+    trackResults.B2a_CNo  = zeros(1,floor(settings.msToProcess/settings.CNoInterval));
+end
 
 %--- Copy initial settings for all channels -------------------------------
 trackResults = repmat(trackResults, 1, settings.numberOfChannels);
@@ -98,13 +105,13 @@ PDIcode = settings.intTime;
 
 % Calculate filter coefficient values
 [tau1code, tau2code] = calcLoopCoef(settings.dllNoiseBandwidth, ...
-    settings.dllDampingRatio, 1.0);
+    settings.dllDampingRatio, ...
+    1.0);
 
 %--- PLL variables --------------------------------------------------------
 % Calculate filter coefficient values
 [pf3,pf2,pf1] = calcLoopCoefCarr(settings);
-
-% -------- Number of acqusired signals ------------------------------------
+% -------- Number of acquired signals ------------------------------------
 TrackedNr =0 ;
 for channelNr = 1:settings.numberOfChannels
     if channel(channelNr).status == 'T'
@@ -137,15 +144,17 @@ for channelNr = 1:settings.numberOfChannels
         % appropriate sample (corresponding to code phase). Assumes sample
         % type is schar (or 1 byte per sample)
         if strcmp(settings.dataType,'int16')
-            fseek(fid, dataAdaptCoeff*(settings.skipNumberOfBytes + ...
-                (channel(channelNr).codePhase-1)*2), 'bof');
+            fseek(fid, ...
+                dataAdaptCoeff*(settings.skipNumberOfBytes + (channel(channelNr).codePhase-1)*2), ...
+                'bof');
         else
-            fseek(fid, dataAdaptCoeff*(settings.skipNumberOfBytes + ...
-                channel(channelNr).codePhase-1), 'bof');
+            fseek(fid, ...
+                dataAdaptCoeff*(settings.skipNumberOfBytes + channel(channelNr).codePhase-1), ...
+                'bof');
         end
 
         % Get a vector with the E5aI tiered code sampled 1x/chip
-        E5aICode = generateE5aIcode(channel(channelNr).PRN,2);
+        E5aICode = generateE5aIcode(channel(channelNr).PRN,1);
         % Then make it possible to do early and late versions
         E5aICode = [E5aICode(settings.codeLength) E5aICode E5aICode(1)]; %#ok<AGROW>
 
@@ -156,7 +165,8 @@ for channelNr = 1:settings.numberOfChannels
         end
 
         %--- Perform various initializations ------------------------------
-        % DSefine initial code frequency basis of NCO
+
+        % define initial code frequency basis of NCO
         codeFreq      = channel(channelNr).codeFreq;
         % Define residual code phase (in chips)
         remCodePhase  = 0.0;
@@ -174,9 +184,9 @@ for channelNr = 1:settings.numberOfChannels
         d2CarrError  = 0.0;
         dCarrError   = 0.0;
 
-        %C/No computation
-        vsmCnt  = 0;
-        CNo = 0;
+        % For C/No computation
+        CNoValue = zeros(1,3);
+        tempCNoValue = zeros(1,3);
 
         %=== Process the number of specified code periods =================
         for loopCnt =  1:settings.msToProcess
@@ -193,7 +203,8 @@ for channelNr = 1:settings.numberOfChannels
                     'PRN: ', int2str(channel(channelNr).PRN),Ln ...
                     'Completed ',int2str(loopCnt), ...
                     ' of ', int2str(settings.msToProcess), ' msec',Ln...
-                    'C/No: ',CNo,' (dB-Hz)'];
+                    'Data C/No: ',int2str(CNoValue(1)),' (dB-Hz);',...
+                    '   Pilot C/No: ',int2str(CNoValue(2)),' (dB-Hz)'];
 
                 try
                     waitbar(loopCnt/settings.msToProcess, hwb, ...
@@ -236,7 +247,7 @@ for channelNr = 1:settings.numberOfChannels
             % data - better exit
             if (samplesRead ~= dataAdaptCoeff*blksize)
                 disp('Not able to read the specified number of samples  for tracking, exiting!')
-                fclose(fid);
+                delete(hwb);
                 return
             end
 
@@ -342,8 +353,8 @@ for channelNr = 1:settings.numberOfChannels
             carrFreq = carrFreqBasis + carrNco;
 
             %% Find DLL error and update code NCO -------------------------------------
-            codeError = (sqrt(I_E^2 + Q_E^2) - sqrt(I_L^2 + Q_L^2)) / ...
-                (sqrt(I_E^2 + Q_E^2) + sqrt(I_L^2 + Q_L^2));
+            codeError = (sqrt(I_E * I_E + Q_E * Q_E) - sqrt(I_L * I_L + Q_L * Q_L)) / ...
+                (sqrt(I_E * I_E + Q_E * Q_E) + sqrt(I_L * I_L + Q_L * Q_L));
             % For pilot channel signal tracking
             if (settings.pilotTRKflag == 1)
                 codeErrorE1c = (sqrt(I_E_E1c^2 + Q_E_E1c^2) - sqrt(I_L_E1c^2 + Q_L_E1c^2)) / ...
@@ -382,15 +393,32 @@ for channelNr = 1:settings.numberOfChannels
                 trackResults(channelNr).Pilot_I_P(loopCnt) = I_P_E1c ;
                 trackResults(channelNr).Pilot_Q_P(loopCnt) = Q_P_E1c;
             end
+            %% CNo calculation --------------------------------------------------------
 
-            if (rem(loopCnt,settings.CNo.VSMinterval)==0)
-                vsmCnt = vsmCnt+1;
-                CNoValue = CNoVSM(trackResults(channelNr).I_P(loopCnt-settings.CNo.VSMinterval+1:loopCnt),...
-                    trackResults(channelNr).Q_P(loopCnt-settings.CNo.VSMinterval+1:loopCnt),settings.CNo.accTime);
-                trackResults(channelNr).CNo.VSMValue(vsmCnt) = CNoValue;
-                trackResults(channelNr).CNo.VSMIndex(vsmCnt) = loopCnt;
-                CNo = int2str(CNoValue);
+            if (rem(loopCnt,settings.CNoInterval)==0)
+                % Computation of CNo and PLL detector output
+                [CNoValue, PllDetector]= ...
+                    Calc_CNo_PLD(trackResults(channelNr),settings,loopCnt);
+
+                CNoCnt = loopCnt/settings.CNoInterval;
+
+                % Save C/No for data channel: a o.5-0.5 filter is used to
+                % smooth the results
+                trackResults(channelNr).DataCNo(CNoCnt) = ...
+                               CNoValue(1) * 0.5 + tempCNoValue(1) * 0.5;
+                % Save PLL lock detector output for data channel
+                trackResults(channelNr).DataPLD(CNoCnt) = PllDetector(1);
+
+                % Save C/No and PLL lock detector output for pilot channel
+                if (settings.pilotTRKflag == 1)
+                    trackResults(channelNr).PilotCNo(CNoCnt) = ...
+                              CNoValue(2) * 0.5 + tempCNoValue(2) * 0.5;
+                    trackResults(channelNr).B2a_CNo(CNoCnt) = ...
+                              CNoValue(3) * 0.5 + tempCNoValue(3) * 0.5;
+                    trackResults(channelNr).PilotPLD(CNoCnt) = PllDetector(2);
+                end
             end
+            tempCNoValue = CNoValue;
 
         end % for loopCnt
 
